@@ -228,37 +228,48 @@
 
     <!-- ADMIN-BEREICH -->
     <div id="adminSection" class="hidden">
-      <h2>Admin-Bereich</h2>
-      <p class="hint">
-        Nur für Burak – hier wird still und heimlich „gezinkt“ 😇
-      </p>
+      <div id="adminLockedMsg" class="hidden">
+        <h2>Admin-Bereich gesperrt</h2>
+        <p>Es wurde bereits eine Zuordnung vorgenommen – Änderungen sind nicht mehr möglich.</p>
+        <button id="resetStateBtn" class="btn-secondary btn-small">
+          🔁 Neu starten (alle Daten löschen)
+        </button>
+        <p class="hint">Nur für den Organisator gedacht (z.&nbsp;B. für eine neue Wichtelrunde).</p>
+      </div>
 
-      <h3>1. Teilnehmer-Liste</h3>
-      <p>Namen (einen pro Zeile):</p>
-      <textarea id="namesInput"
-        placeholder="z.B.&#10;Anna&#10;Ben&#10;Clara&#10;David"></textarea>
-
-      <button id="prepareMappingBtn" class="btn-secondary btn-small" style="margin-top: 8px;">
-        🔄 Zuordnung grob vorschlagen
-      </button>
-
-      <h3>2. Manuelle Zuordnung</h3>
-      <p>Jede Zeile: <code>Schenkender -> Beschenkter</code></p>
-
-      <textarea id="mappingInput"
-        placeholder="Anna -> Ben&#10;Ben -> Clara&#10;Clara -> David&#10;David -> Anna"></textarea>
-
-      <button id="generateLinksBtn" class="btn-primary" style="margin-top: 10px;">
-        🔗 Individuelle Links erzeugen
-      </button>
-
-      <div id="linksSection" class="hidden" style="margin-top: 14px;">
-        <h3>Persönliche Links</h3>
+      <div id="adminConfig">
+        <h2>Admin-Bereich</h2>
         <p class="hint">
-          Jeweils nur den Link hinter dem Namen an die passende Person schicken
-          (z.&nbsp;B. per WhatsApp).
+          Nur für Burak – hier wird still und heimlich „gezinkt“ 😇
         </p>
-        <pre id="linksOutput"></pre>
+
+        <h3>1. Teilnehmer-Liste</h3>
+        <p>Namen (einen pro Zeile):</p>
+        <textarea id="namesInput"
+          placeholder="z.B.&#10;Anna&#10;Ben&#10;Clara&#10;David"></textarea>
+
+        <button id="prepareMappingBtn" class="btn-secondary btn-small" style="margin-top: 8px;">
+          🔄 Zuordnung grob vorschlagen
+        </button>
+
+        <h3>2. Manuelle Zuordnung</h3>
+        <p>Jede Zeile: <code>Schenkender -> Beschenkter</code></p>
+
+        <textarea id="mappingInput"
+          placeholder="Anna -> Ben&#10;Ben -> Clara&#10;Clara -> David&#10;David -> Anna"></textarea>
+
+        <button id="generateLinksBtn" class="btn-primary" style="margin-top: 10px;">
+          🔗 Individuelle Links erzeugen
+        </button>
+
+        <div id="linksSection" class="hidden" style="margin-top: 14px;">
+          <h3>Persönliche Links</h3>
+          <p class="hint">
+            Jeweils nur den Link hinter dem Namen an die passende Person schicken
+            (z.&nbsp;B. per WhatsApp).
+          </p>
+          <pre id="linksOutput"></pre>
+        </div>
       </div>
     </div>
 
@@ -288,10 +299,17 @@
 
 <script>
 /* ----------------------------------------------
-   Admin-Zugang
+   Admin-Zugänge
 ---------------------------------------------- */
-const ADMIN_USER = "Burak";
-const ADMIN_PASS = "1sommer1";
+const REAL_ADMIN_USER = "Burak";
+const REAL_ADMIN_PASS = "1sommer1";
+
+const FAKE_ADMIN_USER = "Burak";
+const FAKE_ADMIN_PASS = "desmo";
+
+/* LocalStorage-Keys */
+const LS_REAL_FINAL = "wichtel_real_finalized";
+const LS_FAKE_USED = "wichtel_fake_used";
 
 /* "Geheimer" Schlüssel für einfache Verschleierung */
 const SECRET_KEY = "XMAS-2024-BURAK";
@@ -302,6 +320,10 @@ const userModeBtn = document.getElementById('userModeBtn');
 const adminSection = document.getElementById('adminSection');
 const userSection = document.getElementById('userSection');
 const modeButtons = document.getElementById('modeButtons');
+
+const adminLockedMsg = document.getElementById('adminLockedMsg');
+const adminConfig = document.getElementById('adminConfig');
+const resetStateBtn = document.getElementById('resetStateBtn');
 
 const namesInput = document.getElementById('namesInput');
 const prepareMappingBtn = document.getElementById('prepareMappingBtn');
@@ -316,6 +338,9 @@ const resultMsg = document.getElementById('resultMsg');
 
 const bgMusic = document.getElementById('bgMusic');
 
+/* aktueller Admin-Modus: "none" | "real" | "fake" */
+let adminMode = "none";
+
 /* Musik beim Laden versuchen zu starten (wird evtl. vom Browser geblockt) */
 window.addEventListener('load', () => {
   if (bgMusic) {
@@ -326,7 +351,18 @@ window.addEventListener('load', () => {
 });
 
 /* ----------------------------------------------
-   Hilfsfunktionen: einfache "Verschlüsselung"
+   Hilfsfunktionen für Flags
+---------------------------------------------- */
+function isRealFinalized() {
+  return localStorage.getItem(LS_REAL_FINAL) === "true";
+}
+
+function isFakeUsed() {
+  return localStorage.getItem(LS_FAKE_USED) === "true";
+}
+
+/* ----------------------------------------------
+   Einfache "Verschlüsselung"
    JSON -> XOR mit SECRET_KEY -> Base64
 ---------------------------------------------- */
 function encryptData(obj) {
@@ -357,15 +393,69 @@ function decryptData(encoded) {
 }
 
 /* ----------------------------------------------
+   Random-Derangement (echtes zufälliges Wichteln)
+---------------------------------------------- */
+function createDerangement(n) {
+  if (n === 2) {
+    return [1, 0];
+  }
+  const indices = [...Array(n).keys()];
+  let perm;
+  let ok = false;
+
+  while (!ok) {
+    perm = indices.slice();
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [perm[i], perm[j]] = [perm[j], perm[i]];
+    }
+    ok = true;
+    for (let i = 0; i < n; i++) {
+      if (perm[i] === i) {
+        ok = false;
+        break;
+      }
+    }
+  }
+  return perm;
+}
+
+/* ----------------------------------------------
+   Admin-Versperren / Freigeben
+---------------------------------------------- */
+function showLockedAdminView() {
+  adminLockedMsg.classList.remove('hidden');
+  adminConfig.classList.add('hidden');
+  adminSection.classList.remove('hidden');
+  userSection.classList.add('hidden');
+}
+
+function showEditableAdminView() {
+  adminLockedMsg.classList.add('hidden');
+  adminConfig.classList.remove('hidden');
+  adminSection.classList.remove('hidden');
+  userSection.classList.add('hidden');
+}
+
+/* ----------------------------------------------
    Admin-Login
 ---------------------------------------------- */
 adminModeBtn.addEventListener('click', () => {
   const user = prompt("Admin-Benutzername:");
   const pwd = prompt("Admin-Passwort:");
 
-  if (user === ADMIN_USER && pwd === ADMIN_PASS) {
-    adminSection.classList.remove('hidden');
-    userSection.classList.add('hidden');
+  if (user === REAL_ADMIN_USER && pwd === REAL_ADMIN_PASS) {
+    adminMode = "real";
+    // echter Admin darf immer rein, aber nur 1x final generieren
+    showEditableAdminView();
+  } else if (user === FAKE_ADMIN_USER && pwd === FAKE_ADMIN_PASS) {
+    adminMode = "fake";
+    // Fake-Admin ist gesperrt, wenn schon genutzt oder echte Zuordnung final
+    if (isFakeUsed() || isRealFinalized()) {
+      showLockedAdminView();
+    } else {
+      showEditableAdminView();
+    }
   } else {
     alert("Falsche Zugangsdaten.");
   }
@@ -377,6 +467,15 @@ userModeBtn.addEventListener('click', () => {
   adminSection.classList.add('hidden');
 });
 
+/* Neu starten (alle Daten löschen) */
+resetStateBtn.addEventListener('click', () => {
+  if (confirm("Alle gespeicherten Zustände löschen (echte & Fake-Zuordnung)?")) {
+    localStorage.removeItem(LS_REAL_FINAL);
+    localStorage.removeItem(LS_FAKE_USED);
+    location.reload();
+  }
+});
+
 /* ----------------------------------------------
    Namen holen
 ---------------------------------------------- */
@@ -386,7 +485,7 @@ function getNames() {
   return raw.split('\n').map(n => n.trim()).filter(n => n.length > 0);
 }
 
-/* Vorschlags-Zuordnung */
+/* Vorschlags-Zuordnung (zufällig, ohne Selbst-Zuordnung) */
 prepareMappingBtn.addEventListener('click', () => {
   const names = getNames();
   if (names.length < 2) {
@@ -394,10 +493,11 @@ prepareMappingBtn.addEventListener('click', () => {
     return;
   }
 
+  const der = createDerangement(names.length);
   const lines = [];
   for (let i = 0; i < names.length; i++) {
     const giver = names[i];
-    const receiver = names[(i + 1) % names.length];
+    const receiver = names[der[i]];
     lines.push(`${giver} -> ${receiver}`);
   }
   mappingInput.value = lines.join('\n');
@@ -405,9 +505,25 @@ prepareMappingBtn.addEventListener('click', () => {
 
 /* ----------------------------------------------
    Zuordnung + Links erzeugen
-   → pro Person ein "verschlüsselter" Token ?t=...
+   → pro Person ein verschlüsselter Token ?t=...
 ---------------------------------------------- */
 generateLinksBtn.addEventListener('click', () => {
+  if (adminMode === "none") {
+    alert("Bitte zuerst als Admin einloggen.");
+    return;
+  }
+
+  if (adminMode === "real" && isRealFinalized()) {
+    alert("Es wurde bereits eine endgültige Zuordnung erstellt. Links können nicht erneut erzeugt werden.");
+    return;
+  }
+
+  if (adminMode === "fake" && (isFakeUsed() || isRealFinalized())) {
+    alert("Dieser Bereich ist gesperrt, da bereits eine Zuordnung vorgenommen wurde.");
+    showLockedAdminView();
+    return;
+  }
+
   const names = getNames();
   if (names.length < 2) {
     alert('Mindestens zwei Teilnehmer nötig.');
@@ -482,6 +598,13 @@ generateLinksBtn.addEventListener('click', () => {
 
   linksOutput.textContent = linkLines.join('\n');
   linksSection.classList.remove('hidden');
+
+  // Flags setzen: real final, fake benutzt
+  if (adminMode === "real") {
+    localStorage.setItem(LS_REAL_FINAL, "true");
+  } else if (adminMode === "fake") {
+    localStorage.setItem(LS_FAKE_USED, "true");
+  }
 });
 
 /* ----------------------------------------------
