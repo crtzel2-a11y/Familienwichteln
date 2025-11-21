@@ -203,8 +203,7 @@
   </style>
 </head>
 <body>
-  <!-- Hintergrundmusik (Jingle Bells) -->
-  <!-- Datei jinglebells.mp3 muss im gleichen Ordner liegen -->
+  <!-- Hintergrundmusik -->
   <audio id="bgMusic" src="jinglebells.mp3" loop></audio>
 
   <div class="card">
@@ -229,11 +228,11 @@
     <div id="adminSection" class="hidden">
       <div id="adminLockedMsg" class="hidden">
         <h2>Spiel bereits gestartet</h2>
-        <p>Es wurde bereits eine Zuordnung vorgenommen – Änderungen sind nicht mehr möglich.</p>
+        <p>Es wurde bereits eine Zuordnung vorgenommen – keine neuen Links mehr möglich.</p>
         <button id="resetStateBtn" class="btn-secondary btn-small">
           🔁 Neu starten (alles löschen)
         </button>
-        <p class="hint">Nur für den Organisator gedacht (z.B. für eine neue Wichtelrunde).</p>
+        <p class="hint">Nur für den Organisator (z.B. neue Runde).</p>
       </div>
 
       <div id="adminConfig">
@@ -295,23 +294,24 @@
   </div>
 
 <script>
-/* ----------------------------------------------
-   Admin-Zugänge
----------------------------------------------- */
+/* Admin-Zugänge */
 const REAL_ADMIN_USER = "Burak";
 const REAL_ADMIN_PASS = "1sommer1";
-
 const FAKE_ADMIN_USER = "Desmo";
 const FAKE_ADMIN_PASS = "1sommer1";
 
 /* LocalStorage Keys */
-const LS_FINAL = "wichteln_final";           // echte oder Fake-Links erstellt
-const LS_USED_PREFIX = "wichteln_used_";     // Teilnehmer-Link verbraucht
+const LS_FINAL = "wichteln_final";
+const LS_LINKS = "wichteln_links";
+const LS_NAMES = "wichteln_names";
+const LS_MAPPING = "wichteln_mapping";
+const LS_USED_PREFIX = "wichteln_used_";
+const LS_PIN_PREFIX = "wichteln_pin_";
 
-/* "Geheimer" Schlüssel für Verschleierung */
+/* Verschleierung */
 const SECRET_KEY = "XMAS-2024-BURAK";
 
-/* DOM-Elemente */
+/* DOM */
 const adminModeBtn = document.getElementById('adminModeBtn');
 const userModeBtn = document.getElementById('userModeBtn');
 const adminSection = document.getElementById('adminSection');
@@ -339,24 +339,22 @@ const bgMusic = document.getElementById('bgMusic');
 
 let adminMode = "none"; // "real" | "fake" | "none"
 
-/* Musik beim Laden versuchen zu starten */
+/* Musik beim Laden versuchen */
 window.addEventListener('load', () => {
   if (bgMusic) {
     bgMusic.play().catch(() => {});
   }
 });
 
-/* ----------------------------------------------
-   Helpers: Flags & Encryption
----------------------------------------------- */
+/* Flags */
 function isFinalized() {
   return localStorage.getItem(LS_FINAL) === "true";
 }
-
 function markFinalized() {
   localStorage.setItem(LS_FINAL, "true");
 }
 
+/* Verschlüsselung */
 function encryptData(obj) {
   const json = JSON.stringify(obj);
   let xored = "";
@@ -383,7 +381,7 @@ function decryptData(encoded) {
   return JSON.parse(json);
 }
 
-/* Random-Derangement (echtes Wichteln) */
+/* Zufällige Zuordnung (Derangement) */
 function createDerangement(n) {
   if (n < 2) return null;
   if (n === 2) return [1, 0];
@@ -407,14 +405,34 @@ function createDerangement(n) {
   return perm;
 }
 
-/* ----------------------------------------------
-   Admin-Ansicht umschalten
----------------------------------------------- */
-function showLockedAdminView() {
+/* Admin-Ansicht */
+function showLockedAdminView(isReal) {
   adminLockedMsg.classList.remove('hidden');
-  adminConfig.classList.add('hidden');
   adminSection.classList.remove('hidden');
-  userSection.classList.add('hidden');
+  adminConfig.classList.add('hidden');
+  if (isReal) {
+    // echter Admin darf Links & (falls vorhanden) Mapping/Names sehen
+    adminLockedMsg.querySelector('p').textContent =
+      "Das Spiel hat begonnen. Du kannst die vorhandenen Links ansehen, aber nichts mehr ändern.";
+    adminConfig.classList.remove('hidden');
+    adminLockedMsg.classList.remove('hidden');
+
+    const storedNames = localStorage.getItem(LS_NAMES) || "";
+    const storedMapping = localStorage.getItem(LS_MAPPING) || "";
+    const storedLinks = localStorage.getItem(LS_LINKS) || "";
+
+    namesInput.value = storedNames;
+    mappingInput.value = storedMapping;
+    linksOutput.textContent = storedLinks;
+    if (storedLinks) {
+      linksSection.classList.remove('hidden');
+    }
+
+    namesInput.readOnly = true;
+    mappingInput.readOnly = true;
+    prepareMappingBtn.disabled = true;
+    generateLinksBtn.disabled = true;
+  }
 }
 
 function showEditableAdminView() {
@@ -427,19 +445,25 @@ function showEditableAdminView() {
     adminTitle.textContent = "Admin-Bereich (echter Admin)";
     adminHint.textContent = "Burak kann hier die Zuordnung auch manuell festlegen.";
     mappingBlock.style.display = "";
+    namesInput.readOnly = false;
+    mappingInput.readOnly = false;
+    prepareMappingBtn.disabled = false;
+    generateLinksBtn.disabled = false;
   } else if (adminMode === "fake") {
     adminTitle.textContent = "Admin-Bereich (Demo)";
-    adminHint.textContent = "Die Zuordnung wird automatisch zufällig festgelegt – hier nicht sichtbar.";
+    adminHint.textContent = "Die Zuordnung wird zufällig im Hintergrund erstellt und hier nicht angezeigt.";
     mappingBlock.style.display = "none";
+    namesInput.readOnly = false;
+    mappingInput.readOnly = true;
+    prepareMappingBtn.disabled = false;
+    generateLinksBtn.disabled = false;
     mappingInput.value = "";
     linksSection.classList.add('hidden');
     linksOutput.textContent = "";
   }
 }
 
-/* ----------------------------------------------
-   Admin-Login
----------------------------------------------- */
+/* Admin-Login */
 adminModeBtn.addEventListener('click', () => {
   const user = prompt("Admin-Benutzername:");
   const pwd = prompt("Admin-Passwort:");
@@ -454,42 +478,40 @@ adminModeBtn.addEventListener('click', () => {
   }
 
   if (isFinalized()) {
-    showLockedAdminView();
+    showLockedAdminView(adminMode === "real");
   } else {
     showEditableAdminView();
   }
 });
 
-/* Teilnehmer-Modus manuell wählen (ohne Link) */
+/* Teilnehmer-Modus ohne Link */
 userModeBtn.addEventListener('click', () => {
   adminSection.classList.add('hidden');
   userSection.classList.remove('hidden');
 });
 
-/* Reset-Knopf (alles löschen) */
+/* Reset */
 resetStateBtn.addEventListener('click', () => {
-  if (confirm("Alle gespeicherten Zustände löschen und neu starten?")) {
+  if (confirm("Alles zurücksetzen (auch Links & PINs) und neu starten?")) {
     localStorage.clear();
     location.reload();
   }
 });
 
-/* ----------------------------------------------
-   Namen holen & Vorschlags-Zuordnung
----------------------------------------------- */
+/* Namen holen */
 function getNames() {
   const raw = namesInput.value.trim();
   if (!raw) return [];
   return raw.split(/\n+/).map(s => s.trim()).filter(s => s.length > 0);
 }
 
+/* Zufallsvorschlag */
 prepareMappingBtn.addEventListener('click', () => {
   const names = getNames();
   if (names.length < 2) {
     alert("Mindestens zwei Namen nötig.");
     return;
   }
-
   const der = createDerangement(names.length);
   if (!der) {
     alert("Zu wenige Teilnehmer.");
@@ -497,22 +519,17 @@ prepareMappingBtn.addEventListener('click', () => {
   }
 
   if (adminMode === "real") {
-    // Echt: Vorschlag sichtbar
     let lines = [];
     for (let i = 0; i < names.length; i++) {
       lines.push(`${names[i]} -> ${names[der[i]]}`);
     }
     mappingInput.value = lines.join("\n");
   } else if (adminMode === "fake") {
-    // Fake: nur Info, keine Sicht auf Paare
-    alert("Die Zuordnung wurde zufällig erstellt (im Hintergrund).");
-    // wir merken uns intern nichts, Generate berechnet ggf. neu
+    alert("Die Zuordnung wurde zufällig im Hintergrund erstellt.");
   }
 });
 
-/* ----------------------------------------------
-   Links generieren (echter & Fake Admin)
----------------------------------------------- */
+/* Links generieren */
 generateLinksBtn.addEventListener('click', () => {
   if (adminMode === "none") {
     alert("Bitte zuerst als Admin einloggen.");
@@ -521,7 +538,8 @@ generateLinksBtn.addEventListener('click', () => {
 
   if (isFinalized()) {
     alert("Es wurde bereits eine Zuordnung erstellt. Keine weiteren Links möglich.");
-    showLockedAdminView();
+    if (adminMode === "real") showLockedAdminView(true);
+    else showLockedAdminView(false);
     return;
   }
 
@@ -535,7 +553,6 @@ generateLinksBtn.addEventListener('click', () => {
   let assignment = new Array(n).fill(null);
 
   if (adminMode === "real") {
-    // Manuelle Zuordnung aus mappingInput
     const rawMapping = mappingInput.value.trim();
     if (!rawMapping) {
       alert("Bitte eine Zuordnung eintragen oder vorschlagen lassen.");
@@ -544,7 +561,7 @@ generateLinksBtn.addEventListener('click', () => {
 
     const lines = rawMapping.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
     const nameToIndex = new Map();
-    names.forEach((n, i) => nameToIndex.set(n, i));
+    names.forEach((nm, i) => nameToIndex.set(nm, i));
     const usedTargets = new Set();
 
     for (const line of lines) {
@@ -590,7 +607,6 @@ generateLinksBtn.addEventListener('click', () => {
       }
     }
   } else if (adminMode === "fake") {
-    // Fake-Admin: komplette Zuordnung zufällig im Hintergrund
     const der = createDerangement(n);
     if (!der) {
       alert("Zu wenige Teilnehmer.");
@@ -601,7 +617,6 @@ generateLinksBtn.addEventListener('click', () => {
     }
   }
 
-  // Links bauen
   const baseUrl = window.location.origin + window.location.pathname;
   let linesOut = [];
 
@@ -617,16 +632,23 @@ generateLinksBtn.addEventListener('click', () => {
     linesOut.push(`${names[i]}: ${link}`);
   }
 
-  linksOutput.textContent = linesOut.join("\n");
+  const linksText = linesOut.join("\n");
+  linksOutput.textContent = linksText;
   linksSection.classList.remove('hidden');
 
-  // Ab jetzt: Spiel gestartet → zukünftige Logins gesperrt
+  // für echten Admin Mapping speichern, für Fake nur Namen + Links
+  localStorage.setItem(LS_NAMES, names.join("\n"));
+  if (adminMode === "real") {
+    localStorage.setItem(LS_MAPPING, mappingInput.value);
+  } else {
+    localStorage.setItem(LS_MAPPING, "");
+  }
+  localStorage.setItem(LS_LINKS, linksText);
+
   markFinalized();
 });
 
-/* ----------------------------------------------
-   Teilnehmer: Link auswerten & 1x nutzbar machen
----------------------------------------------- */
+/* Teilnehmer: Link auswerten (mit PIN-Wiederfreischaltung) */
 showResultBtn.addEventListener('click', () => {
   const params = new URLSearchParams(window.location.search);
   const tokenParam = params.get('t');
@@ -651,10 +673,7 @@ showResultBtn.addEventListener('click', () => {
   }
 
   const usedKey = LS_USED_PREFIX + pair.id;
-  if (localStorage.getItem(usedKey) === "true") {
-    resultMsg.textContent = "Dieser Link wurde bereits verwendet.";
-    return;
-  }
+  const pinKey = LS_PIN_PREFIX + pair.id;
 
   const typedName = userNameInput.value.trim();
   if (!typedName) {
@@ -667,19 +686,50 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  // Alles ok → Ergebnis anzeigen & Link als verbraucht markieren
+  // Wenn Link schon verwendet → PIN abfragen
+  if (localStorage.getItem(usedKey) === "true") {
+    const savedPin = localStorage.getItem(pinKey);
+    if (!savedPin) {
+      resultMsg.textContent = "Dieser Link wurde bereits verwendet.";
+      return;
+    }
+
+    const entered = prompt("Dieser Link wurde bereits verwendet.\nBitte deinen 4-stelligen PIN eingeben:");
+    if (!entered || !/^[0-9]{4}$/.test(entered)) {
+      resultMsg.textContent = "PIN-Eingabe abgebrochen oder ungültig.";
+      return;
+    }
+    if (entered !== savedPin) {
+      resultMsg.textContent = "Falscher PIN.";
+      return;
+    }
+
+    // korrekter PIN → Zuordnung erneut anzeigen
+    resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
+    if (bgMusic) {
+      bgMusic.play().catch(() => {});
+    }
+    return;
+  }
+
+  // Erster Aufruf: zeigen + PIN setzen
   resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
   localStorage.setItem(usedKey, "true");
+
+  const pin = prompt(
+    "Wenn du später nochmal nachschauen willst, kannst du jetzt einen 4-stelligen Zahlencode festlegen.\n" +
+    "Lass das Feld leer, wenn du keinen PIN setzen möchtest.\n\nPIN (4 Ziffern):"
+  );
+  if (pin && /^[0-9]{4}$/.test(pin)) {
+    localStorage.setItem(pinKey, pin);
+  }
 
   if (bgMusic) {
     bgMusic.play().catch(() => {});
   }
 });
 
-/* ----------------------------------------------
-   Beim Laden: Teilnehmer-Link erkennen
-   → Admin und Buttons ausblenden
----------------------------------------------- */
+/* Teilnehmer-Link erkennen → Admin & Buttons verstecken */
 (function () {
   const params = new URLSearchParams(window.location.search);
   const tokenParam = params.get('t');
