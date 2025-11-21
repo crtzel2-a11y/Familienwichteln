@@ -17,7 +17,6 @@
       --button-text: #ffffff;
       --input-border: #cccccc;
       --shadow-soft: 0 12px 25px rgba(0,0,0,0.18);
-      --radius-lg: 16px;
     }
 
     * { box-sizing: border-box; }
@@ -202,19 +201,13 @@
         width: 100%;
       }
     }
-
-    .demo-warning {
-      padding: 6px 9px;
-      border-radius: 10px;
-      background: #eff6ff;
-      border: 1px solid #bfdbfe;
-      color: #1d4ed8;
-      font-size: 0.85rem;
-      margin-bottom: 10px;
-    }
   </style>
 </head>
 <body>
+  <!-- Hintergrundmusik (Jingle Bells) -->
+  <!-- Datei jinglebells.mp3 muss im gleichen Ordner liegen -->
+  <audio id="bgMusic" src="jinglebells.mp3" loop></audio>
+
   <div class="card">
     <div class="badge">Geheimes Familien-Wichteln</div>
     <h1><span class="icon">🎁</span><span>Familien-Wichteln</span></h1>
@@ -222,7 +215,7 @@
       Jeder bekommt seinen geheimen Wichtel – die Zuordnung legst du unsichtbar fest.
     </p>
 
-    <div class="mode-buttons">
+    <div class="mode-buttons" id="modeButtons">
       <button id="adminModeBtn" class="btn-primary">
         👑 Ich organisiere (Admin)
       </button>
@@ -235,11 +228,6 @@
 
     <!-- ADMIN-BEREICH -->
     <div id="adminSection" class="hidden">
-      <div id="demoInfo" class="demo-warning hidden">
-        Dieser Modus zeigt dir nur, wie eine Auslosung aussehen würde.
-        Die echten Zuordnungen sind hier nicht sichtbar.
-      </div>
-
       <h2>Admin-Bereich</h2>
       <p class="hint">
         Nur für Burak – hier wird still und heimlich „gezinkt“ 😇
@@ -293,33 +281,27 @@
 
       <p id="resultMsg"></p>
       <p class="hint">
-        Niemand außer dir sieht diese Info – es wird nur lokal in deinem Browser angezeigt.
+        Niemand außer dir sieht diese Info – sie wird nur lokal in deinem Browser angezeigt.
       </p>
     </div>
   </div>
 
 <script>
 /* ----------------------------------------------
-   ADMIN-LOGIN (echter Admin + Demo-Admin)
+   Admin-Zugang
 ---------------------------------------------- */
-const REAL_ADMIN_USER = "Burak";
-const REAL_ADMIN_PASS = "1sommer1";
+const ADMIN_USER = "Burak";
+const ADMIN_PASS = "1sommer1";
 
-// Demo-Login zum Vorzeigen (kannst du anpassen)
-const DEMO_ADMIN_USER = "Familie";
-const DEMO_ADMIN_PASS = "zeigen";
+/* "Geheimer" Schlüssel für einfache Verschleierung */
+const SECRET_KEY = "XMAS-2024-BURAK";
 
-let currentAdminMode = "none"; // "real" oder "demo"
-
-/* ----------------------------------------------
-   DOM-Elemente
----------------------------------------------- */
+/* DOM-Elemente */
 const adminModeBtn = document.getElementById('adminModeBtn');
 const userModeBtn = document.getElementById('userModeBtn');
 const adminSection = document.getElementById('adminSection');
 const userSection = document.getElementById('userSection');
-
-const demoInfo = document.getElementById('demoInfo');
+const modeButtons = document.getElementById('modeButtons');
 
 const namesInput = document.getElementById('namesInput');
 const prepareMappingBtn = document.getElementById('prepareMappingBtn');
@@ -332,24 +314,56 @@ const userNameInput = document.getElementById('userNameInput');
 const showResultBtn = document.getElementById('showResultBtn');
 const resultMsg = document.getElementById('resultMsg');
 
+const bgMusic = document.getElementById('bgMusic');
+
+/* Musik beim Laden versuchen zu starten (wird evtl. vom Browser geblockt) */
+window.addEventListener('load', () => {
+  if (bgMusic) {
+    bgMusic.play().catch(() => {
+      // Autoplay wurde blockiert – kein Fehler anzeigen
+    });
+  }
+});
+
 /* ----------------------------------------------
-   ADMIN-BEREICH LOGIN
+   Hilfsfunktionen: einfache "Verschlüsselung"
+   JSON -> XOR mit SECRET_KEY -> Base64
+---------------------------------------------- */
+function encryptData(obj) {
+  const json = JSON.stringify(obj);
+  let xored = "";
+  for (let i = 0; i < json.length; i++) {
+    const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
+    xored += String.fromCharCode(json.charCodeAt(i) ^ keyChar);
+  }
+  // UTF-8 sicher in Base64
+  const utf8 = encodeURIComponent(xored).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+    String.fromCharCode(parseInt(p1, 16))
+  );
+  return btoa(utf8);
+}
+
+function decryptData(encoded) {
+  const utf8 = atob(encoded);
+  const xored = decodeURIComponent(Array.prototype.map.call(utf8, c =>
+    "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(""));
+  let json = "";
+  for (let i = 0; i < xored.length; i++) {
+    const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
+    json += String.fromCharCode(xored.charCodeAt(i) ^ keyChar);
+  }
+  return JSON.parse(json);
+}
+
+/* ----------------------------------------------
+   Admin-Login
 ---------------------------------------------- */
 adminModeBtn.addEventListener('click', () => {
   const user = prompt("Admin-Benutzername:");
   const pwd = prompt("Admin-Passwort:");
 
-  if (user === REAL_ADMIN_USER && pwd === REAL_ADMIN_PASS) {
-    currentAdminMode = "real";
-    demoInfo.classList.add('hidden');
-    adminSection.classList.remove('hidden');
-    userSection.classList.add('hidden');
-  } else if (user === DEMO_ADMIN_USER && pwd === DEMO_ADMIN_PASS) {
-    currentAdminMode = "demo";
-    // Im Demo-Modus: keine echten Links anzeigen
-    demoInfo.classList.remove('hidden');
-    linksSection.classList.add('hidden');
-    mappingInput.value = "";
+  if (user === ADMIN_USER && pwd === ADMIN_PASS) {
     adminSection.classList.remove('hidden');
     userSection.classList.add('hidden');
   } else {
@@ -357,14 +371,14 @@ adminModeBtn.addEventListener('click', () => {
   }
 });
 
-/* Teilnehmer-Modus */
+/* Teilnehmer-Modus (Start ohne Link) */
 userModeBtn.addEventListener('click', () => {
   userSection.classList.remove('hidden');
   adminSection.classList.add('hidden');
 });
 
 /* ----------------------------------------------
-   Hilfsfunktion: Namen aus Textfeld holen
+   Namen holen
 ---------------------------------------------- */
 function getNames() {
   const raw = namesInput.value.trim();
@@ -372,9 +386,7 @@ function getNames() {
   return raw.split('\n').map(n => n.trim()).filter(n => n.length > 0);
 }
 
-/* ----------------------------------------------
-   Schritt 1: Automatische Zuordnung vorschlagen
----------------------------------------------- */
+/* Vorschlags-Zuordnung */
 prepareMappingBtn.addEventListener('click', () => {
   const names = getNames();
   if (names.length < 2) {
@@ -392,17 +404,11 @@ prepareMappingBtn.addEventListener('click', () => {
 });
 
 /* ----------------------------------------------
-   Schritt 2: Zuordnung parsen & Links erzeugen
-   (pro Person ein eigenes, codiertes Datenobjekt)
+   Zuordnung + Links erzeugen
+   → pro Person ein "verschlüsselter" Token ?t=...
 ---------------------------------------------- */
 generateLinksBtn.addEventListener('click', () => {
-  if (currentAdminMode !== "real") {
-    alert("Echte Links können nur im Burak-Admin-Modus erzeugt werden.");
-    return;
-  }
-
   const names = getNames();
-
   if (names.length < 2) {
     alert('Mindestens zwei Teilnehmer nötig.');
     return;
@@ -465,17 +471,12 @@ generateLinksBtn.addEventListener('click', () => {
   const linkLines = [];
 
   for (let i = 0; i < names.length; i++) {
-    const pairData = {
+    const dataObj = {
       myName: names[i],
       targetName: names[assignment[i]]
     };
-
-    // "Verschlüsselung": JSON -> Base64 -> URL-encode
-    const json = JSON.stringify(pairData);
-    const base64 = btoa(json);
-    const encoded = encodeURIComponent(base64);
-
-    const link = `${baseUrl}?d=${encoded}`;
+    const token = encryptData(dataObj);
+    const link = `${baseUrl}?t=${encodeURIComponent(token)}`;
     linkLines.push(`${names[i]}: ${link}`);
   }
 
@@ -484,23 +485,21 @@ generateLinksBtn.addEventListener('click', () => {
 });
 
 /* ----------------------------------------------
-   TEILNEHMER: Ziel anzeigen
-   (nur noch myName & targetName in codierten Daten)
+   Teilnehmer: Link auswerten
 ---------------------------------------------- */
 showResultBtn.addEventListener('click', () => {
   const params = new URLSearchParams(window.location.search);
-  const dataParam = params.get('d');
+  const tokenParam = params.get('t');
 
-  if (!dataParam) {
+  if (!tokenParam) {
     resultMsg.textContent = "Ungültiger oder unvollständiger Link.";
     return;
   }
 
   let pair;
   try {
-    const base64 = decodeURIComponent(dataParam);
-    const json = atob(base64);
-    pair = JSON.parse(json);
+    const decodedToken = decodeURIComponent(tokenParam);
+    pair = decryptData(decodedToken);
   } catch (e) {
     resultMsg.textContent = "Fehler beim Lesen der Daten.";
     return;
@@ -523,20 +522,26 @@ showResultBtn.addEventListener('click', () => {
   }
 
   resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
+
+  if (bgMusic) {
+    bgMusic.play().catch(() => {});
+  }
 });
 
 /* ----------------------------------------------
-   AUTOMATISCH: Teilnehmer-Links erkennen → Admin verstecken
+   Beim Laden prüfen: Teilnehmer-Link?
+   → Admin-Bereich & Buttons ausblenden
 ---------------------------------------------- */
 (function () {
   const params = new URLSearchParams(window.location.search);
-  const hasData = params.get('d');
+  const tokenParam = params.get('t');
 
-  if (hasData) {
+  if (tokenParam) {
     userSection.classList.remove('hidden');
     adminSection.classList.add('hidden');
-    adminModeBtn.style.display = "none";
-    userModeBtn.style.display = "none";
+    if (adminModeBtn) adminModeBtn.style.display = "none";
+    if (userModeBtn) userModeBtn.style.display = "none";
+    if (modeButtons) modeButtons.style.display = "none";
   }
 })();
 </script>
