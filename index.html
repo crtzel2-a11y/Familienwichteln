@@ -1,3 +1,653 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Familien-Wichteln</title>
+  <style>
+    :root {
+      --bg1: #1b2735;
+      --bg2: #3b4252;
+      --accent: #e63946;
+      --card-bg: #ffffff;
+      --text-main: #222222;
+      --text-muted: #555555;
+      --button-bg: #e63946;
+      --button-bg-secondary: #3b4252;
+      --button-text: #ffffff;
+      --input-border: #cccccc;
+      --shadow-soft: 0 12px 25px rgba(0,0,0,0.18);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #fdf2f2 0, #f3f4f6 40%, #111827 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      color: var(--text-main);
+    }
+
+    .card {
+      background: var(--card-bg);
+      max-width: 760px;
+      width: 100%;
+      border-radius: 24px;
+      box-shadow: var(--shadow-soft);
+      padding: 24px 22px 26px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @media (min-width: 768px) {
+      .card {
+        padding: 30px 32px 32px;
+        border-radius: 28px;
+      }
+    }
+
+    .card::before {
+      content: "🎄";
+      position: absolute;
+      font-size: 42px;
+      top: 12px;
+      right: 16px;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.7rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h1 span.icon { font-size: 1.9rem; }
+
+    .subtitle {
+      margin: 0 0 18px;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .mode-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 9px 16px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.12s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+      white-space: nowrap;
+    }
+
+    button:active {
+      transform: translateY(1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+
+    .btn-primary {
+      background: var(--button-bg);
+      color: var(--button-text);
+    }
+
+    .btn-secondary {
+      background: var(--button-bg-secondary);
+      color: var(--button-text);
+    }
+
+    .btn-small {
+      font-size: 0.85rem;
+      padding: 7px 13px;
+      box-shadow: none;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #e5e7eb;
+      margin: 10px 0 16px;
+    }
+
+    .hidden { display: none; }
+
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 14px 0 6px; font-size: 1.02rem; }
+
+    p {
+      margin: 4px 0 10px;
+      font-size: 0.95rem;
+    }
+
+    label {
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 8px 9px;
+      border-radius: 10px;
+      border: 1px solid var(--input-border);
+      font-size: 0.93rem;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    textarea { min-height: 110px; }
+
+    textarea::placeholder,
+    input::placeholder { color: #9ca3af; }
+
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #f9fafb;
+      border-radius: 10px;
+      padding: 10px 11px;
+      font-size: 0.86rem;
+      border: 1px solid #e5e7eb;
+    }
+
+    .hint {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-top: 2px;
+    }
+
+    #resultMsg {
+      margin-top: 10px;
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #fef3c7;
+      color: #92400e;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 480px) {
+      h1 { font-size: 1.45rem; }
+      .card { padding: 18px 16px 22px; }
+      .mode-buttons {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      button {
+        justify-content: center;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Hintergrundmusik -->
+  <audio id="bgMusic" src="jinglebells.mp3" loop></audio>
+
+  <div class="card">
+    <div class="badge">Geheimes Familien-Wichteln</div>
+    <h1><span class="icon">🎁</span><span>Familien-Wichteln</span></h1>
+    <p class="subtitle">
+      Jeder bekommt seinen geheimen Wichtel – die Zuordnung bleibt geheim.
+    </p>
+
+    <div class="mode-buttons" id="modeButtons">
+      <button id="adminModeBtn" class="btn-primary">
+        👑 Ich organisiere
+      </button>
+      <button id="userModeBtn" class="btn-secondary">
+        🙋‍♂️ Ich bin Teilnehmer
+      </button>
+    </div>
+
+    <hr>
+
+    <!-- ADMIN-BEREICH -->
+    <div id="adminSection" class="hidden">
+      <div id="adminLockedMsg" class="hidden">
+        <h2>Spiel bereits gestartet</h2>
+        <p>Es wurde bereits eine Zuordnung vorgenommen – keine neuen Links mehr möglich.</p>
+        <button id="resetStateBtn" class="btn-secondary btn-small">
+          🔁 Neu starten (alles löschen)
+        </button>
+        <p class="hint">Nur für den Organisator (z.B. neue Runde).</p>
+      </div>
+
+      <div id="adminConfig">
+        <h2 id="adminTitle">Admin-Bereich</h2>
+        <p class="hint" id="adminHint"></p>
+
+        <h3>1. Teilnehmer-Liste</h3>
+        <p>Namen (einen pro Zeile):</p>
+        <textarea id="namesInput"
+          placeholder="z.B.&#10;Anna&#10;Ben&#10;Clara&#10;David"></textarea>
+
+        <button id="prepareMappingBtn" class="btn-secondary btn-small" style="margin-top: 8px;">
+          🔄 Zufällige Zuordnung vorschlagen
+        </button>
+
+        <div id="mappingBlock">
+          <h3>2. Manuelle Zuordnung (nur echter Admin)</h3>
+          <p>Jede Zeile: <code>Schenkender -> Beschenkter</code></p>
+          <textarea id="mappingInput"
+            placeholder="Anna -> Ben&#10;Ben -> Clara&#10;Clara -> David&#10;David -> Anna"></textarea>
+        </div>
+
+        <button id="generateLinksBtn" class="btn-primary" style="margin-top: 10px;">
+          🔗 Einmal-Links generieren
+        </button>
+
+        <div id="linksSection" class="hidden" style="margin-top: 14px;">
+          <h3>Persönliche Links</h3>
+          <p class="hint">
+            Jeweils nur den Link hinter dem Namen an die passende Person schicken (z.B. per WhatsApp).
+          </p>
+          <pre id="linksOutput"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- TEILNEHMER-BEREICH -->
+    <div id="userSection" class="hidden">
+      <h2>Teilnehmer-Bereich</h2>
+      <p>
+        Du solltest einen persönlichen Link bekommen haben.  
+        Trage deinen Namen genauso ein, wie der Organisator ihn eingetragen hat.
+      </p>
+
+      <label>
+        Dein Name:<br>
+        <input type="text" id="userNameInput" placeholder="z.B. Anna">
+      </label>
+      <br>
+      <button id="showResultBtn" class="btn-primary" style="margin-top: 10px;">
+        🎁 Zeigen, wen ich beschenke
+      </button>
+
+      <p id="resultMsg"></p>
+      <p class="hint">
+        Niemand außer dir sieht diese Info – sie wird nur lokal in deinem Browser angezeigt.
+      </p>
+    </div>
+  </div>
+
+<script>
+/* Admin-Zugänge */
+const REAL_ADMIN_USER = "Burak";
+const REAL_ADMIN_PASS = "1sommer1";
+const FAKE_ADMIN_USER = "Desmo";
+const FAKE_ADMIN_PASS = "1sommer1";
+
+/* LocalStorage Keys */
+const LS_FINAL = "wichteln_final";
+const LS_LINKS = "wichteln_links";
+const LS_NAMES = "wichteln_names";
+const LS_MAPPING = "wichteln_mapping";
+const LS_USED_PREFIX = "wichteln_used_";
+const LS_PIN_PREFIX = "wichteln_pin_";
+
+/* Verschleierung */
+const SECRET_KEY = "XMAS-2024-BURAK";
+
+/* DOM */
+const adminModeBtn = document.getElementById('adminModeBtn');
+const userModeBtn = document.getElementById('userModeBtn');
+const adminSection = document.getElementById('adminSection');
+const adminLockedMsg = document.getElementById('adminLockedMsg');
+const adminConfig = document.getElementById('adminConfig');
+const resetStateBtn = document.getElementById('resetStateBtn');
+const adminTitle = document.getElementById('adminTitle');
+const adminHint = document.getElementById('adminHint');
+const mappingBlock = document.getElementById('mappingBlock');
+
+const namesInput = document.getElementById('namesInput');
+const prepareMappingBtn = document.getElementById('prepareMappingBtn');
+const mappingInput = document.getElementById('mappingInput');
+const generateLinksBtn = document.getElementById('generateLinksBtn');
+const linksSection = document.getElementById('linksSection');
+const linksOutput = document.getElementById('linksOutput');
+
+const userSection = document.getElementById('userSection');
+const userNameInput = document.getElementById('userNameInput');
+const showResultBtn = document.getElementById('showResultBtn');
+const resultMsg = document.getElementById('resultMsg');
+
+const modeButtons = document.getElementById('modeButtons');
+const bgMusic = document.getElementById('bgMusic');
+
+let adminMode = "none"; // "real" | "fake" | "none"
+
+/* Musik beim Laden versuchen */
+window.addEventListener('load', () => {
+  if (bgMusic) {
+    bgMusic.play().catch(() => {});
+  }
+});
+
+/* Flags */
+function isFinalized() {
+  return localStorage.getItem(LS_FINAL) === "true";
+}
+function markFinalized() {
+  localStorage.setItem(LS_FINAL, "true");
+}
+
+/* Verschlüsselung */
+function encryptData(obj) {
+  const json = JSON.stringify(obj);
+  let xored = "";
+  for (let i = 0; i < json.length; i++) {
+    const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
+    xored += String.fromCharCode(json.charCodeAt(i) ^ keyChar);
+  }
+  const utf8 = encodeURIComponent(xored).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+    String.fromCharCode(parseInt(p1, 16))
+  );
+  return btoa(utf8);
+}
+
+function decryptData(encoded) {
+  const utf8 = atob(encoded);
+  const xored = decodeURIComponent(Array.prototype.map.call(utf8, c =>
+    "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(""));
+  let json = "";
+  for (let i = 0; i < xored.length; i++) {
+    const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
+    json += String.fromCharCode(xored.charCodeAt(i) ^ keyChar);
+  }
+  return JSON.parse(json);
+}
+
+/* Zufällige Zuordnung (Derangement) */
+function createDerangement(n) {
+  if (n < 2) return null;
+  if (n === 2) return [1, 0];
+  let perm;
+  let ok = false;
+  const base = [...Array(n).keys()];
+  while (!ok) {
+    perm = base.slice();
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [perm[i], perm[j]] = [perm[j], perm[i]];
+    }
+    ok = true;
+    for (let i = 0; i < n; i++) {
+      if (perm[i] === i) {
+        ok = false;
+        break;
+      }
+    }
+  }
+  return perm;
+}
+
+/* Admin-Ansicht */
+function showLockedAdminView(isReal) {
+  adminLockedMsg.classList.remove('hidden');
+  adminSection.classList.remove('hidden');
+  adminConfig.classList.add('hidden');
+  if (isReal) {
+    // echter Admin darf Links & (falls vorhanden) Mapping/Names sehen
+    adminLockedMsg.querySelector('p').textContent =
+      "Das Spiel hat begonnen. Du kannst die vorhandenen Links ansehen, aber nichts mehr ändern.";
+    adminConfig.classList.remove('hidden');
+    adminLockedMsg.classList.remove('hidden');
+
+    const storedNames = localStorage.getItem(LS_NAMES) || "";
+    const storedMapping = localStorage.getItem(LS_MAPPING) || "";
+    const storedLinks = localStorage.getItem(LS_LINKS) || "";
+
+    namesInput.value = storedNames;
+    mappingInput.value = storedMapping;
+    linksOutput.textContent = storedLinks;
+    if (storedLinks) {
+      linksSection.classList.remove('hidden');
+    }
+
+    namesInput.readOnly = true;
+    mappingInput.readOnly = true;
+    prepareMappingBtn.disabled = true;
+    generateLinksBtn.disabled = true;
+  }
+}
+
+function showEditableAdminView() {
+  adminLockedMsg.classList.add('hidden');
+  adminConfig.classList.remove('hidden');
+  adminSection.classList.remove('hidden');
+  userSection.classList.add('hidden');
+
+  if (adminMode === "real") {
+    adminTitle.textContent = "Admin-Bereich (echter Admin)";
+    adminHint.textContent = "Burak kann hier die Zuordnung auch manuell festlegen.";
+    mappingBlock.style.display = "";
+    namesInput.readOnly = false;
+    mappingInput.readOnly = false;
+    prepareMappingBtn.disabled = false;
+    generateLinksBtn.disabled = false;
+  } else if (adminMode === "fake") {
+    adminTitle.textContent = "Admin-Bereich (Demo)";
+    adminHint.textContent = "Die Zuordnung wird zufällig im Hintergrund erstellt und hier nicht angezeigt.";
+    mappingBlock.style.display = "none";
+    namesInput.readOnly = false;
+    mappingInput.readOnly = true;
+    prepareMappingBtn.disabled = false;
+    generateLinksBtn.disabled = false;
+    mappingInput.value = "";
+    linksSection.classList.add('hidden');
+    linksOutput.textContent = "";
+  }
+}
+
+/* Admin-Login */
+adminModeBtn.addEventListener('click', () => {
+  const user = prompt("Admin-Benutzername:");
+  const pwd = prompt("Admin-Passwort:");
+
+  if (user === REAL_ADMIN_USER && pwd === REAL_ADMIN_PASS) {
+    adminMode = "real";
+  } else if (user === FAKE_ADMIN_USER && pwd === FAKE_ADMIN_PASS) {
+    adminMode = "fake";
+  } else {
+    alert("Falsche Zugangsdaten.");
+    return;
+  }
+
+  if (isFinalized()) {
+    showLockedAdminView(adminMode === "real");
+  } else {
+    showEditableAdminView();
+  }
+});
+
+/* Teilnehmer-Modus ohne Link */
+userModeBtn.addEventListener('click', () => {
+  adminSection.classList.add('hidden');
+  userSection.classList.remove('hidden');
+});
+
+/* Reset */
+resetStateBtn.addEventListener('click', () => {
+  if (confirm("Alles zurücksetzen (auch Links & PINs) und neu starten?")) {
+    localStorage.clear();
+    location.reload();
+  }
+});
+
+/* Namen holen */
+function getNames() {
+  const raw = namesInput.value.trim();
+  if (!raw) return [];
+  return raw.split(/\n+/).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+/* Zufallsvorschlag */
+prepareMappingBtn.addEventListener('click', () => {
+  const names = getNames();
+  if (names.length < 2) {
+    alert("Mindestens zwei Namen nötig.");
+    return;
+  }
+  const der = createDerangement(names.length);
+  if (!der) {
+    alert("Zu wenige Teilnehmer.");
+    return;
+  }
+
+  if (adminMode === "real") {
+    let lines = [];
+    for (let i = 0; i < names.length; i++) {
+      lines.push(`${names[i]} -> ${names[der[i]]}`);
+    }
+    mappingInput.value = lines.join("\n");
+  } else if (adminMode === "fake") {
+    alert("Die Zuordnung wurde zufällig im Hintergrund erstellt.");
+  }
+});
+
+/* Links generieren */
+generateLinksBtn.addEventListener('click', () => {
+  if (adminMode === "none") {
+    alert("Bitte zuerst als Admin einloggen.");
+    return;
+  }
+
+  if (isFinalized()) {
+    alert("Es wurde bereits eine Zuordnung erstellt. Keine weiteren Links möglich.");
+    if (adminMode === "real") showLockedAdminView(true);
+    else showLockedAdminView(false);
+    return;
+  }
+
+  const names = getNames();
+  if (names.length < 2) {
+    alert("Mindestens zwei Teilnehmer nötig.");
+    return;
+  }
+
+  const n = names.length;
+  let assignment = new Array(n).fill(null);
+
+  if (adminMode === "real") {
+    const rawMapping = mappingInput.value.trim();
+    if (!rawMapping) {
+      alert("Bitte eine Zuordnung eintragen oder vorschlagen lassen.");
+      return;
+    }
+
+    const lines = rawMapping.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
+    const nameToIndex = new Map();
+    names.forEach((nm, i) => nameToIndex.set(nm, i));
+    const usedTargets = new Set();
+
+    for (const line of lines) {
+      const parts = line.split("->");
+      if (parts.length !== 2) {
+        alert('Falsches Format: "' + line + '". Erwartet: Name -> Name');
+        return;
+      }
+      const giver = parts[0].trim();
+      const receiver = parts[1].trim();
+
+      if (!nameToIndex.has(giver) || !nameToIndex.has(receiver)) {
+        alert('Unbekannter Name in: "' + line + '".');
+        return;
+      }
+
+      const gi = nameToIndex.get(giver);
+      const ri = nameToIndex.get(receiver);
+
+      if (gi === ri) {
+        alert("Selbst-Zuordnung nicht erlaubt: " + line);
+        return;
+      }
+
+      if (assignment[gi] !== null) {
+        alert(giver + " hat mehrere Einträge.");
+        return;
+      }
+
+      if (usedTargets.has(ri)) {
+        alert(receiver + " wird mehrfach beschenkt.");
+        return;
+      }
+
+      assignment[gi] = ri;
+      usedTargets.add(ri);
+    }
+
+    for (let i = 0; i < n; i++) {
+      if (assignment[i] === null) {
+        alert(names[i] + " hat keine Zuordnung.");
+        return;
+      }
+    }
+  } else if (adminMode === "fake") {
+    const der = createDerangement(n);
+    if (!der) {
+      alert("Zu wenige Teilnehmer.");
+      return;
+    }
+    for (let i = 0; i < n; i++) {
+      assignment[i] = der[i];
+    }
+  }
+
+  const baseUrl = window.location.origin + window.location.pathname;
+  let linesOut = [];
+
+  for (let i = 0; i < n; i++) {
+    const id = Date.now() + "_" + i + "_" + Math.random().toString(36).slice(2, 8);
+    const dataObj = {
+      id,
+      myName: names[i],
+      targetName: names[assignment[i]]
+    };
+    const token = encryptData(dataObj);
+    const link = `${baseUrl}?t=${encodeURIComponent(token)}`;
+    linesOut.push(`${names[i]}: ${link}`);
+  }
+
+  const linksText = linesOut.join("\n");
+  linksOutput.textContent = linksText;
+  linksSection.classList.remove('hidden');
+
+  // für echten Admin Mapping speichern, für Fake nur Namen + Links
+  localStorage.setItem(LS_NAMES, names.join("\n"));
+  if (adminMode === "real") {
+    localStorage.setItem(LS_MAPPING, mappingInput.value);
+  } else {
+    localStorage.setItem(LS_MAPPING, "");
+  }
+  localStorage.setItem(LS_LINKS, linksText);
+
+  markFinalized();
+});
+
 /* Teilnehmer: Link auswerten (mit PIN-Wiederfreischaltung) */
 showResultBtn.addEventListener('click', () => {
   const params = new URLSearchParams(window.location.search);
@@ -36,31 +686,19 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  // Link wurde schon benutzt → PIN-Pfad
+  // Wenn Link schon verwendet → PIN abfragen
   if (localStorage.getItem(usedKey) === "true") {
     const savedPin = localStorage.getItem(pinKey);
     if (!savedPin) {
-      resultMsg.textContent = "Dieser Link wurde bereits verwendet (kein PIN gesetzt).";
+      resultMsg.textContent = "Dieser Link wurde bereits verwendet.";
       return;
     }
 
-    let entered = prompt(
-      "Dieser Link wurde bereits verwendet.\n\nBitte deinen 4-stelligen PIN eingeben (nur Ziffern):"
-    );
-    if (entered === null) {
-      resultMsg.textContent = "PIN-Eingabe abgebrochen.";
+    const entered = prompt("Dieser Link wurde bereits verwendet.\nBitte deinen 4-stelligen PIN eingeben:");
+    if (!entered || !/^[0-9]{4}$/.test(entered)) {
+      resultMsg.textContent = "PIN-Eingabe abgebrochen oder ungültig.";
       return;
     }
-
-    // so lange nachfragen, bis 4 Ziffern oder Abbruch
-    while (!/^[0-9]{4}$/.test(entered)) {
-      entered = prompt("Der PIN muss aus genau 4 Ziffern bestehen.\nBitte erneut eingeben oder Abbrechen:");
-      if (entered === null) {
-        resultMsg.textContent = "PIN-Eingabe abgebrochen.";
-        return;
-      }
-    }
-
     if (entered !== savedPin) {
       resultMsg.textContent = "Falscher PIN.";
       return;
@@ -74,31 +712,34 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  // Erster Aufruf: Ergebnis anzeigen & optional PIN setzen
+  // Erster Aufruf: zeigen + PIN setzen
   resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
   localStorage.setItem(usedKey, "true");
 
-  let pin = prompt(
+  const pin = prompt(
     "Wenn du später nochmal nachschauen willst, kannst du jetzt einen 4-stelligen Zahlencode festlegen.\n" +
-    "Lass das Feld leer oder drücke Abbrechen, wenn du keinen PIN setzen möchtest.\n\nPIN (4 Ziffern):"
+    "Lass das Feld leer, wenn du keinen PIN setzen möchtest.\n\nPIN (4 Ziffern):"
   );
-
-  if (pin !== null && pin !== "") {
-    // so lange nachfragen, bis 4 Ziffern oder Abbruch
-    while (!/^[0-9]{4}$/.test(pin)) {
-      pin = prompt("Der PIN muss aus genau 4 Ziffern bestehen.\nBitte erneut eingeben oder Abbrechen:");
-      if (pin === null || pin === "") {
-        // doch keinen PIN setzen
-        pin = "";
-        break;
-      }
-    }
-    if (pin && /^[0-9]{4}$/.test(pin)) {
-      localStorage.setItem(pinKey, pin);
-    }
+  if (pin && /^[0-9]{4}$/.test(pin)) {
+    localStorage.setItem(pinKey, pin);
   }
 
   if (bgMusic) {
     bgMusic.play().catch(() => {});
   }
 });
+
+/* Teilnehmer-Link erkennen → Admin & Buttons verstecken */
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const tokenParam = params.get('t');
+
+  if (tokenParam) {
+    userSection.classList.remove('hidden');
+    adminSection.classList.add('hidden');
+    if (modeButtons) modeButtons.style.display = "none";
+  }
+})();
+</script>
+</body>
+</html>
