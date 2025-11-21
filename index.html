@@ -20,9 +20,7 @@
       --radius-lg: 16px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -72,9 +70,7 @@
       gap: 8px;
     }
 
-    h1 span.icon {
-      font-size: 1.9rem;
-    }
+    h1 span.icon { font-size: 1.9rem; }
 
     .subtitle {
       margin: 0 0 18px;
@@ -130,19 +126,10 @@
       margin: 10px 0 16px;
     }
 
-    .hidden {
-      display: none;
-    }
+    .hidden { display: none; }
 
-    h2 {
-      margin: 0 0 10px;
-      font-size: 1.25rem;
-    }
-
-    h3 {
-      margin: 14px 0 6px;
-      font-size: 1.02rem;
-    }
+    h2 { margin: 0 0 10px; font-size: 1.25rem; }
+    h3 { margin: 14px 0 6px; font-size: 1.02rem; }
 
     p {
       margin: 4px 0 10px;
@@ -164,14 +151,10 @@
       resize: vertical;
     }
 
-    textarea {
-      min-height: 110px;
-    }
+    textarea { min-height: 110px; }
 
     textarea::placeholder,
-    input::placeholder {
-      color: #9ca3af;
-    }
+    input::placeholder { color: #9ca3af; }
 
     pre {
       white-space: pre-wrap;
@@ -208,12 +191,8 @@
     }
 
     @media (max-width: 480px) {
-      h1 {
-        font-size: 1.45rem;
-      }
-      .card {
-        padding: 18px 16px 22px;
-      }
+      h1 { font-size: 1.45rem; }
+      .card { padding: 18px 16px 22px; }
       .mode-buttons {
         flex-direction: column;
         align-items: stretch;
@@ -222,6 +201,16 @@
         justify-content: center;
         width: 100%;
       }
+    }
+
+    .demo-warning {
+      padding: 6px 9px;
+      border-radius: 10px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+      font-size: 0.85rem;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -246,6 +235,11 @@
 
     <!-- ADMIN-BEREICH -->
     <div id="adminSection" class="hidden">
+      <div id="demoInfo" class="demo-warning hidden">
+        Dieser Modus zeigt dir nur, wie eine Auslosung aussehen würde.
+        Die echten Zuordnungen sind hier nicht sichtbar.
+      </div>
+
       <h2>Admin-Bereich</h2>
       <p class="hint">
         Nur für Burak – hier wird still und heimlich „gezinkt“ 😇
@@ -306,10 +300,16 @@
 
 <script>
 /* ----------------------------------------------
-   ADMIN-LOGIN (Benutzer & Passwort)
+   ADMIN-LOGIN (echter Admin + Demo-Admin)
 ---------------------------------------------- */
-const ADMIN_USER = "Burak";
-const ADMIN_PASS = "1sommer1";
+const REAL_ADMIN_USER = "Burak";
+const REAL_ADMIN_PASS = "1sommer1";
+
+// Demo-Login zum Vorzeigen (kannst du anpassen)
+const DEMO_ADMIN_USER = "Familie";
+const DEMO_ADMIN_PASS = "zeigen";
+
+let currentAdminMode = "none"; // "real" oder "demo"
 
 /* ----------------------------------------------
    DOM-Elemente
@@ -318,6 +318,8 @@ const adminModeBtn = document.getElementById('adminModeBtn');
 const userModeBtn = document.getElementById('userModeBtn');
 const adminSection = document.getElementById('adminSection');
 const userSection = document.getElementById('userSection');
+
+const demoInfo = document.getElementById('demoInfo');
 
 const namesInput = document.getElementById('namesInput');
 const prepareMappingBtn = document.getElementById('prepareMappingBtn');
@@ -337,13 +339,22 @@ adminModeBtn.addEventListener('click', () => {
   const user = prompt("Admin-Benutzername:");
   const pwd = prompt("Admin-Passwort:");
 
-  if (user !== ADMIN_USER || pwd !== ADMIN_PASS) {
+  if (user === REAL_ADMIN_USER && pwd === REAL_ADMIN_PASS) {
+    currentAdminMode = "real";
+    demoInfo.classList.add('hidden');
+    adminSection.classList.remove('hidden');
+    userSection.classList.add('hidden');
+  } else if (user === DEMO_ADMIN_USER && pwd === DEMO_ADMIN_PASS) {
+    currentAdminMode = "demo";
+    // Im Demo-Modus: keine echten Links anzeigen
+    demoInfo.classList.remove('hidden');
+    linksSection.classList.add('hidden');
+    mappingInput.value = "";
+    adminSection.classList.remove('hidden');
+    userSection.classList.add('hidden');
+  } else {
     alert("Falsche Zugangsdaten.");
-    return;
   }
-
-  adminSection.classList.remove('hidden');
-  userSection.classList.add('hidden');
 });
 
 /* Teilnehmer-Modus */
@@ -382,8 +393,14 @@ prepareMappingBtn.addEventListener('click', () => {
 
 /* ----------------------------------------------
    Schritt 2: Zuordnung parsen & Links erzeugen
+   (pro Person ein eigenes, codiertes Datenobjekt)
 ---------------------------------------------- */
 generateLinksBtn.addEventListener('click', () => {
+  if (currentAdminMode !== "real") {
+    alert("Echte Links können nur im Burak-Admin-Modus erzeugt werden.");
+    return;
+  }
+
   const names = getNames();
 
   if (names.length < 2) {
@@ -444,13 +461,21 @@ generateLinksBtn.addEventListener('click', () => {
     }
   }
 
-  const data = { names, assignment };
   const baseUrl = window.location.origin + window.location.pathname;
-
   const linkLines = [];
+
   for (let i = 0; i < names.length; i++) {
-    const encoded = encodeURIComponent(JSON.stringify(data));
-    const link = `${baseUrl}?data=${encoded}&id=${i}`;
+    const pairData = {
+      myName: names[i],
+      targetName: names[assignment[i]]
+    };
+
+    // "Verschlüsselung": JSON -> Base64 -> URL-encode
+    const json = JSON.stringify(pairData);
+    const base64 = btoa(json);
+    const encoded = encodeURIComponent(base64);
+
+    const link = `${baseUrl}?d=${encoded}`;
     linkLines.push(`${names[i]}: ${link}`);
   }
 
@@ -460,28 +485,26 @@ generateLinksBtn.addEventListener('click', () => {
 
 /* ----------------------------------------------
    TEILNEHMER: Ziel anzeigen
+   (nur noch myName & targetName in codierten Daten)
 ---------------------------------------------- */
 showResultBtn.addEventListener('click', () => {
   const params = new URLSearchParams(window.location.search);
-  const dataParam = params.get('data');
-  const idParam = params.get('id');
+  const dataParam = params.get('d');
 
-  if (!dataParam || idParam === null) {
+  if (!dataParam) {
     resultMsg.textContent = "Ungültiger oder unvollständiger Link.";
     return;
   }
 
-  let data;
+  let pair;
   try {
-    data = JSON.parse(decodeURIComponent(dataParam));
+    const base64 = decodeURIComponent(dataParam);
+    const json = atob(base64);
+    pair = JSON.parse(json);
   } catch (e) {
     resultMsg.textContent = "Fehler beim Lesen der Daten.";
     return;
   }
-
-  const names = data.names;
-  const assignment = data.assignment;
-  const myIndex = parseInt(idParam, 10);
 
   const typedName = userNameInput.value.trim();
   if (!typedName) {
@@ -489,13 +512,17 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  if (typedName !== names[myIndex]) {
+  if (!pair.myName || !pair.targetName) {
+    resultMsg.textContent = "Daten im Link sind ungültig.";
+    return;
+  }
+
+  if (typedName !== pair.myName) {
     resultMsg.textContent = "Der Name passt nicht zu diesem Link.";
     return;
   }
 
-  const targetName = names[assignment[myIndex]];
-  resultMsg.textContent = `Du beschenkst: ${targetName}`;
+  resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
 });
 
 /* ----------------------------------------------
@@ -503,10 +530,9 @@ showResultBtn.addEventListener('click', () => {
 ---------------------------------------------- */
 (function () {
   const params = new URLSearchParams(window.location.search);
-  const hasData = params.get('data');
-  const hasId = params.get('id');
+  const hasData = params.get('d');
 
-  if (hasData && hasId !== null) {
+  if (hasData) {
     userSection.classList.remove('hidden');
     adminSection.classList.add('hidden');
     adminModeBtn.style.display = "none";
