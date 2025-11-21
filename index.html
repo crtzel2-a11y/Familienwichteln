@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Familien-Wichteln</title>
   <style>
     :root {
       --bg1: #1b2735;
       --bg2: #3b4252;
       --accent: #e63946;
-      --accent-soft: #f1a7a7;
       --card-bg: #ffffff;
       --text-main: #222222;
       --text-muted: #555555;
@@ -212,12 +211,12 @@
     <div class="badge">Geheimes Familien-Wichteln</div>
     <h1><span class="icon">🎁</span><span>Familien-Wichteln</span></h1>
     <p class="subtitle">
-      Jeder bekommt seinen geheimen Wichtel – die Zuordnung legst du unsichtbar fest.
+      Jeder bekommt seinen geheimen Wichtel – die Zuordnung bleibt geheim.
     </p>
 
     <div class="mode-buttons" id="modeButtons">
       <button id="adminModeBtn" class="btn-primary">
-        👑 Ich organisiere (Admin)
+        👑 Ich organisiere
       </button>
       <button id="userModeBtn" class="btn-secondary">
         🙋‍♂️ Ich bin Teilnehmer
@@ -229,19 +228,17 @@
     <!-- ADMIN-BEREICH -->
     <div id="adminSection" class="hidden">
       <div id="adminLockedMsg" class="hidden">
-        <h2>Admin-Bereich gesperrt</h2>
+        <h2>Spiel bereits gestartet</h2>
         <p>Es wurde bereits eine Zuordnung vorgenommen – Änderungen sind nicht mehr möglich.</p>
         <button id="resetStateBtn" class="btn-secondary btn-small">
-          🔁 Neu starten (alle Daten löschen)
+          🔁 Neu starten (alles löschen)
         </button>
-        <p class="hint">Nur für den Organisator gedacht (z.&nbsp;B. für eine neue Wichtelrunde).</p>
+        <p class="hint">Nur für den Organisator gedacht (z.B. für eine neue Wichtelrunde).</p>
       </div>
 
       <div id="adminConfig">
-        <h2>Admin-Bereich</h2>
-        <p class="hint">
-          Nur für Burak – hier wird still und heimlich „gezinkt“ 😇
-        </p>
+        <h2 id="adminTitle">Admin-Bereich</h2>
+        <p class="hint" id="adminHint"></p>
 
         <h3>1. Teilnehmer-Liste</h3>
         <p>Namen (einen pro Zeile):</p>
@@ -249,24 +246,24 @@
           placeholder="z.B.&#10;Anna&#10;Ben&#10;Clara&#10;David"></textarea>
 
         <button id="prepareMappingBtn" class="btn-secondary btn-small" style="margin-top: 8px;">
-          🔄 Zuordnung grob vorschlagen
+          🔄 Zufällige Zuordnung vorschlagen
         </button>
 
-        <h3>2. Manuelle Zuordnung</h3>
-        <p>Jede Zeile: <code>Schenkender -> Beschenkter</code></p>
-
-        <textarea id="mappingInput"
-          placeholder="Anna -> Ben&#10;Ben -> Clara&#10;Clara -> David&#10;David -> Anna"></textarea>
+        <div id="mappingBlock">
+          <h3>2. Manuelle Zuordnung (nur echter Admin)</h3>
+          <p>Jede Zeile: <code>Schenkender -> Beschenkter</code></p>
+          <textarea id="mappingInput"
+            placeholder="Anna -> Ben&#10;Ben -> Clara&#10;Clara -> David&#10;David -> Anna"></textarea>
+        </div>
 
         <button id="generateLinksBtn" class="btn-primary" style="margin-top: 10px;">
-          🔗 Individuelle Links erzeugen
+          🔗 Einmal-Links generieren
         </button>
 
         <div id="linksSection" class="hidden" style="margin-top: 14px;">
           <h3>Persönliche Links</h3>
           <p class="hint">
-            Jeweils nur den Link hinter dem Namen an die passende Person schicken
-            (z.&nbsp;B. per WhatsApp).
+            Jeweils nur den Link hinter dem Namen an die passende Person schicken (z.B. per WhatsApp).
           </p>
           <pre id="linksOutput"></pre>
         </div>
@@ -278,7 +275,7 @@
       <h2>Teilnehmer-Bereich</h2>
       <p>
         Du solltest einen persönlichen Link bekommen haben.  
-        Trage deinen Namen genauso ein, wie Burak ihn eingetragen hat.
+        Trage deinen Namen genauso ein, wie der Organisator ihn eingetragen hat.
       </p>
 
       <label>
@@ -304,26 +301,26 @@
 const REAL_ADMIN_USER = "Burak";
 const REAL_ADMIN_PASS = "1sommer1";
 
-const FAKE_ADMIN_USER = "Burak";
-const FAKE_ADMIN_PASS = "desmo";
+const FAKE_ADMIN_USER = "Desmo";
+const FAKE_ADMIN_PASS = "1sommer1";
 
-/* LocalStorage-Keys */
-const LS_REAL_FINAL = "wichtel_real_finalized";
-const LS_FAKE_USED = "wichtel_fake_used";
+/* LocalStorage Keys */
+const LS_FINAL = "wichteln_final";           // echte oder Fake-Links erstellt
+const LS_USED_PREFIX = "wichteln_used_";     // Teilnehmer-Link verbraucht
 
-/* "Geheimer" Schlüssel für einfache Verschleierung */
+/* "Geheimer" Schlüssel für Verschleierung */
 const SECRET_KEY = "XMAS-2024-BURAK";
 
 /* DOM-Elemente */
 const adminModeBtn = document.getElementById('adminModeBtn');
 const userModeBtn = document.getElementById('userModeBtn');
 const adminSection = document.getElementById('adminSection');
-const userSection = document.getElementById('userSection');
-const modeButtons = document.getElementById('modeButtons');
-
 const adminLockedMsg = document.getElementById('adminLockedMsg');
 const adminConfig = document.getElementById('adminConfig');
 const resetStateBtn = document.getElementById('resetStateBtn');
+const adminTitle = document.getElementById('adminTitle');
+const adminHint = document.getElementById('adminHint');
+const mappingBlock = document.getElementById('mappingBlock');
 
 const namesInput = document.getElementById('namesInput');
 const prepareMappingBtn = document.getElementById('prepareMappingBtn');
@@ -332,39 +329,34 @@ const generateLinksBtn = document.getElementById('generateLinksBtn');
 const linksSection = document.getElementById('linksSection');
 const linksOutput = document.getElementById('linksOutput');
 
+const userSection = document.getElementById('userSection');
 const userNameInput = document.getElementById('userNameInput');
 const showResultBtn = document.getElementById('showResultBtn');
 const resultMsg = document.getElementById('resultMsg');
 
+const modeButtons = document.getElementById('modeButtons');
 const bgMusic = document.getElementById('bgMusic');
 
-/* aktueller Admin-Modus: "none" | "real" | "fake" */
-let adminMode = "none";
+let adminMode = "none"; // "real" | "fake" | "none"
 
-/* Musik beim Laden versuchen zu starten (wird evtl. vom Browser geblockt) */
+/* Musik beim Laden versuchen zu starten */
 window.addEventListener('load', () => {
   if (bgMusic) {
-    bgMusic.play().catch(() => {
-      // Autoplay wurde blockiert – kein Fehler anzeigen
-    });
+    bgMusic.play().catch(() => {});
   }
 });
 
 /* ----------------------------------------------
-   Hilfsfunktionen für Flags
+   Helpers: Flags & Encryption
 ---------------------------------------------- */
-function isRealFinalized() {
-  return localStorage.getItem(LS_REAL_FINAL) === "true";
+function isFinalized() {
+  return localStorage.getItem(LS_FINAL) === "true";
 }
 
-function isFakeUsed() {
-  return localStorage.getItem(LS_FAKE_USED) === "true";
+function markFinalized() {
+  localStorage.setItem(LS_FINAL, "true");
 }
 
-/* ----------------------------------------------
-   Einfache "Verschlüsselung"
-   JSON -> XOR mit SECRET_KEY -> Base64
----------------------------------------------- */
 function encryptData(obj) {
   const json = JSON.stringify(obj);
   let xored = "";
@@ -372,7 +364,6 @@ function encryptData(obj) {
     const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
     xored += String.fromCharCode(json.charCodeAt(i) ^ keyChar);
   }
-  // UTF-8 sicher in Base64
   const utf8 = encodeURIComponent(xored).replace(/%([0-9A-F]{2})/g, (_, p1) =>
     String.fromCharCode(parseInt(p1, 16))
   );
@@ -392,19 +383,15 @@ function decryptData(encoded) {
   return JSON.parse(json);
 }
 
-/* ----------------------------------------------
-   Random-Derangement (echtes zufälliges Wichteln)
----------------------------------------------- */
+/* Random-Derangement (echtes Wichteln) */
 function createDerangement(n) {
-  if (n === 2) {
-    return [1, 0];
-  }
-  const indices = [...Array(n).keys()];
+  if (n < 2) return null;
+  if (n === 2) return [1, 0];
   let perm;
   let ok = false;
-
+  const base = [...Array(n).keys()];
   while (!ok) {
-    perm = indices.slice();
+    perm = base.slice();
     for (let i = n - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [perm[i], perm[j]] = [perm[j], perm[i]];
@@ -421,7 +408,7 @@ function createDerangement(n) {
 }
 
 /* ----------------------------------------------
-   Admin-Versperren / Freigeben
+   Admin-Ansicht umschalten
 ---------------------------------------------- */
 function showLockedAdminView() {
   adminLockedMsg.classList.remove('hidden');
@@ -435,6 +422,19 @@ function showEditableAdminView() {
   adminConfig.classList.remove('hidden');
   adminSection.classList.remove('hidden');
   userSection.classList.add('hidden');
+
+  if (adminMode === "real") {
+    adminTitle.textContent = "Admin-Bereich (echter Admin)";
+    adminHint.textContent = "Burak kann hier die Zuordnung auch manuell festlegen.";
+    mappingBlock.style.display = "";
+  } else if (adminMode === "fake") {
+    adminTitle.textContent = "Admin-Bereich (Demo)";
+    adminHint.textContent = "Die Zuordnung wird automatisch zufällig festgelegt – hier nicht sichtbar.";
+    mappingBlock.style.display = "none";
+    mappingInput.value = "";
+    linksSection.classList.add('hidden');
+    linksOutput.textContent = "";
+  }
 }
 
 /* ----------------------------------------------
@@ -446,66 +446,72 @@ adminModeBtn.addEventListener('click', () => {
 
   if (user === REAL_ADMIN_USER && pwd === REAL_ADMIN_PASS) {
     adminMode = "real";
-    // echter Admin darf immer rein, aber nur 1x final generieren
-    showEditableAdminView();
   } else if (user === FAKE_ADMIN_USER && pwd === FAKE_ADMIN_PASS) {
     adminMode = "fake";
-    // Fake-Admin ist gesperrt, wenn schon genutzt oder echte Zuordnung final
-    if (isFakeUsed() || isRealFinalized()) {
-      showLockedAdminView();
-    } else {
-      showEditableAdminView();
-    }
   } else {
     alert("Falsche Zugangsdaten.");
+    return;
+  }
+
+  if (isFinalized()) {
+    showLockedAdminView();
+  } else {
+    showEditableAdminView();
   }
 });
 
-/* Teilnehmer-Modus (Start ohne Link) */
+/* Teilnehmer-Modus manuell wählen (ohne Link) */
 userModeBtn.addEventListener('click', () => {
-  userSection.classList.remove('hidden');
   adminSection.classList.add('hidden');
+  userSection.classList.remove('hidden');
 });
 
-/* Neu starten (alle Daten löschen) */
+/* Reset-Knopf (alles löschen) */
 resetStateBtn.addEventListener('click', () => {
-  if (confirm("Alle gespeicherten Zustände löschen (echte & Fake-Zuordnung)?")) {
-    localStorage.removeItem(LS_REAL_FINAL);
-    localStorage.removeItem(LS_FAKE_USED);
+  if (confirm("Alle gespeicherten Zustände löschen und neu starten?")) {
+    localStorage.clear();
     location.reload();
   }
 });
 
 /* ----------------------------------------------
-   Namen holen
+   Namen holen & Vorschlags-Zuordnung
 ---------------------------------------------- */
 function getNames() {
   const raw = namesInput.value.trim();
   if (!raw) return [];
-  return raw.split('\n').map(n => n.trim()).filter(n => n.length > 0);
+  return raw.split(/\n+/).map(s => s.trim()).filter(s => s.length > 0);
 }
 
-/* Vorschlags-Zuordnung (zufällig, ohne Selbst-Zuordnung) */
 prepareMappingBtn.addEventListener('click', () => {
   const names = getNames();
   if (names.length < 2) {
-    alert('Mindestens zwei Namen nötig.');
+    alert("Mindestens zwei Namen nötig.");
     return;
   }
 
   const der = createDerangement(names.length);
-  const lines = [];
-  for (let i = 0; i < names.length; i++) {
-    const giver = names[i];
-    const receiver = names[der[i]];
-    lines.push(`${giver} -> ${receiver}`);
+  if (!der) {
+    alert("Zu wenige Teilnehmer.");
+    return;
   }
-  mappingInput.value = lines.join('\n');
+
+  if (adminMode === "real") {
+    // Echt: Vorschlag sichtbar
+    let lines = [];
+    for (let i = 0; i < names.length; i++) {
+      lines.push(`${names[i]} -> ${names[der[i]]}`);
+    }
+    mappingInput.value = lines.join("\n");
+  } else if (adminMode === "fake") {
+    // Fake: nur Info, keine Sicht auf Paare
+    alert("Die Zuordnung wurde zufällig erstellt (im Hintergrund).");
+    // wir merken uns intern nichts, Generate berechnet ggf. neu
+  }
 });
 
 /* ----------------------------------------------
-   Zuordnung + Links erzeugen
-   → pro Person ein verschlüsselter Token ?t=...
+   Links generieren (echter & Fake Admin)
 ---------------------------------------------- */
 generateLinksBtn.addEventListener('click', () => {
   if (adminMode === "none") {
@@ -513,102 +519,113 @@ generateLinksBtn.addEventListener('click', () => {
     return;
   }
 
-  if (adminMode === "real" && isRealFinalized()) {
-    alert("Es wurde bereits eine endgültige Zuordnung erstellt. Links können nicht erneut erzeugt werden.");
-    return;
-  }
-
-  if (adminMode === "fake" && (isFakeUsed() || isRealFinalized())) {
-    alert("Dieser Bereich ist gesperrt, da bereits eine Zuordnung vorgenommen wurde.");
+  if (isFinalized()) {
+    alert("Es wurde bereits eine Zuordnung erstellt. Keine weiteren Links möglich.");
     showLockedAdminView();
     return;
   }
 
   const names = getNames();
   if (names.length < 2) {
-    alert('Mindestens zwei Teilnehmer nötig.');
+    alert("Mindestens zwei Teilnehmer nötig.");
     return;
   }
 
-  const nameToIndex = new Map();
-  names.forEach((n, i) => nameToIndex.set(n, i));
+  const n = names.length;
+  let assignment = new Array(n).fill(null);
 
-  const rawMapping = mappingInput.value.trim();
-  const lines = rawMapping.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  const assignment = new Array(names.length).fill(null);
-  const usedTargets = new Set();
-
-  for (const line of lines) {
-    const parts = line.split('->');
-    if (parts.length !== 2) {
-      alert('Falsches Format: ' + line);
+  if (adminMode === "real") {
+    // Manuelle Zuordnung aus mappingInput
+    const rawMapping = mappingInput.value.trim();
+    if (!rawMapping) {
+      alert("Bitte eine Zuordnung eintragen oder vorschlagen lassen.");
       return;
     }
 
-    const giver = parts[0].trim();
-    const receiver = parts[1].trim();
+    const lines = rawMapping.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
+    const nameToIndex = new Map();
+    names.forEach((n, i) => nameToIndex.set(n, i));
+    const usedTargets = new Set();
 
-    if (!nameToIndex.has(giver) || !nameToIndex.has(receiver)) {
-      alert('Unbekannter Name in: ' + line);
-      return;
+    for (const line of lines) {
+      const parts = line.split("->");
+      if (parts.length !== 2) {
+        alert('Falsches Format: "' + line + '". Erwartet: Name -> Name');
+        return;
+      }
+      const giver = parts[0].trim();
+      const receiver = parts[1].trim();
+
+      if (!nameToIndex.has(giver) || !nameToIndex.has(receiver)) {
+        alert('Unbekannter Name in: "' + line + '".');
+        return;
+      }
+
+      const gi = nameToIndex.get(giver);
+      const ri = nameToIndex.get(receiver);
+
+      if (gi === ri) {
+        alert("Selbst-Zuordnung nicht erlaubt: " + line);
+        return;
+      }
+
+      if (assignment[gi] !== null) {
+        alert(giver + " hat mehrere Einträge.");
+        return;
+      }
+
+      if (usedTargets.has(ri)) {
+        alert(receiver + " wird mehrfach beschenkt.");
+        return;
+      }
+
+      assignment[gi] = ri;
+      usedTargets.add(ri);
     }
 
-    const gi = nameToIndex.get(giver);
-    const ri = nameToIndex.get(receiver);
-
-    if (gi === ri) {
-      alert("Selbst-Zuordnung nicht erlaubt: " + line);
+    for (let i = 0; i < n; i++) {
+      if (assignment[i] === null) {
+        alert(names[i] + " hat keine Zuordnung.");
+        return;
+      }
+    }
+  } else if (adminMode === "fake") {
+    // Fake-Admin: komplette Zuordnung zufällig im Hintergrund
+    const der = createDerangement(n);
+    if (!der) {
+      alert("Zu wenige Teilnehmer.");
       return;
     }
-
-    if (assignment[gi] !== null) {
-      alert(giver + " hat mehrere Einträge.");
-      return;
+    for (let i = 0; i < n; i++) {
+      assignment[i] = der[i];
     }
-
-    if (usedTargets.has(ri)) {
-      alert(receiver + " wird mehrfach beschenkt.");
-      return;
-    }
-
-    assignment[gi] = ri;
-    usedTargets.add(ri);
   }
 
-  for (let i = 0; i < names.length; i++) {
-    if (assignment[i] === null) {
-      alert(names[i] + " hat keine Zuordnung.");
-      return;
-    }
-  }
-
+  // Links bauen
   const baseUrl = window.location.origin + window.location.pathname;
-  const linkLines = [];
+  let linesOut = [];
 
-  for (let i = 0; i < names.length; i++) {
+  for (let i = 0; i < n; i++) {
+    const id = Date.now() + "_" + i + "_" + Math.random().toString(36).slice(2, 8);
     const dataObj = {
+      id,
       myName: names[i],
       targetName: names[assignment[i]]
     };
     const token = encryptData(dataObj);
     const link = `${baseUrl}?t=${encodeURIComponent(token)}`;
-    linkLines.push(`${names[i]}: ${link}`);
+    linesOut.push(`${names[i]}: ${link}`);
   }
 
-  linksOutput.textContent = linkLines.join('\n');
+  linksOutput.textContent = linesOut.join("\n");
   linksSection.classList.remove('hidden');
 
-  // Flags setzen: real final, fake benutzt
-  if (adminMode === "real") {
-    localStorage.setItem(LS_REAL_FINAL, "true");
-  } else if (adminMode === "fake") {
-    localStorage.setItem(LS_FAKE_USED, "true");
-  }
+  // Ab jetzt: Spiel gestartet → zukünftige Logins gesperrt
+  markFinalized();
 });
 
 /* ----------------------------------------------
-   Teilnehmer: Link auswerten
+   Teilnehmer: Link auswerten & 1x nutzbar machen
 ---------------------------------------------- */
 showResultBtn.addEventListener('click', () => {
   const params = new URLSearchParams(window.location.search);
@@ -628,14 +645,20 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  const typedName = userNameInput.value.trim();
-  if (!typedName) {
-    resultMsg.textContent = "Bitte zuerst deinen Namen eingeben.";
+  if (!pair || !pair.id || !pair.myName || !pair.targetName) {
+    resultMsg.textContent = "Daten im Link sind ungültig.";
     return;
   }
 
-  if (!pair.myName || !pair.targetName) {
-    resultMsg.textContent = "Daten im Link sind ungültig.";
+  const usedKey = LS_USED_PREFIX + pair.id;
+  if (localStorage.getItem(usedKey) === "true") {
+    resultMsg.textContent = "Dieser Link wurde bereits verwendet.";
+    return;
+  }
+
+  const typedName = userNameInput.value.trim();
+  if (!typedName) {
+    resultMsg.textContent = "Bitte zuerst deinen Namen eingeben.";
     return;
   }
 
@@ -644,7 +667,9 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
+  // Alles ok → Ergebnis anzeigen & Link als verbraucht markieren
   resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
+  localStorage.setItem(usedKey, "true");
 
   if (bgMusic) {
     bgMusic.play().catch(() => {});
@@ -652,8 +677,8 @@ showResultBtn.addEventListener('click', () => {
 });
 
 /* ----------------------------------------------
-   Beim Laden prüfen: Teilnehmer-Link?
-   → Admin-Bereich & Buttons ausblenden
+   Beim Laden: Teilnehmer-Link erkennen
+   → Admin und Buttons ausblenden
 ---------------------------------------------- */
 (function () {
   const params = new URLSearchParams(window.location.search);
@@ -662,8 +687,6 @@ showResultBtn.addEventListener('click', () => {
   if (tokenParam) {
     userSection.classList.remove('hidden');
     adminSection.classList.add('hidden');
-    if (adminModeBtn) adminModeBtn.style.display = "none";
-    if (userModeBtn) userModeBtn.style.display = "none";
     if (modeButtons) modeButtons.style.display = "none";
   }
 })();
