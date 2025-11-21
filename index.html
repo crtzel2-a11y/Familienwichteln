@@ -405,36 +405,47 @@ function createDerangement(n) {
   return perm;
 }
 
-/* Admin-Ansicht */
+/* Admin-Ansicht (gesperrt) – jetzt mit Links-Vorschau auch im Fake-Login */
 function showLockedAdminView(isReal) {
   adminLockedMsg.classList.remove('hidden');
   adminSection.classList.remove('hidden');
-  adminConfig.classList.add('hidden');
+  adminConfig.classList.remove('hidden');
+  userSection.classList.add('hidden');
+
+  const storedNames = localStorage.getItem(LS_NAMES) || "";
+  const storedMapping = localStorage.getItem(LS_MAPPING) || "";
+  const storedLinks = localStorage.getItem(LS_LINKS) || "";
+
+  // Namen immer anzeigen, aber nur lesen
+  namesInput.value = storedNames;
+  namesInput.readOnly = true;
+
+  // Links immer anzeigen (auch Fake-Admin)
+  linksOutput.textContent = storedLinks;
+  if (storedLinks) {
+    linksSection.classList.remove('hidden');
+  }
+
+  // Buttons sperren
+  prepareMappingBtn.disabled = true;
+  generateLinksBtn.disabled = true;
+
   if (isReal) {
-    // echter Admin darf Links & (falls vorhanden) Mapping/Names sehen
-    adminLockedMsg.querySelector('p').textContent =
-      "Das Spiel hat begonnen. Du kannst die vorhandenen Links ansehen, aber nichts mehr ändern.";
-    adminConfig.classList.remove('hidden');
-    adminLockedMsg.classList.remove('hidden');
-
-    const storedNames = localStorage.getItem(LS_NAMES) || "";
-    const storedMapping = localStorage.getItem(LS_MAPPING) || "";
-    const storedLinks = localStorage.getItem(LS_LINKS) || "";
-
-    namesInput.value = storedNames;
+    adminTitle.textContent = "Admin-Bereich (echter Admin – Spiel läuft)";
+    adminHint.textContent = "Du kannst Zuordnung & Links ansehen, aber nichts mehr ändern.";
     mappingInput.value = storedMapping;
-    linksOutput.textContent = storedLinks;
-    if (storedLinks) {
-      linksSection.classList.remove('hidden');
-    }
-
-    namesInput.readOnly = true;
     mappingInput.readOnly = true;
-    prepareMappingBtn.disabled = true;
-    generateLinksBtn.disabled = true;
+    mappingBlock.style.display = "";
+  } else {
+    adminTitle.textContent = "Admin-Bereich (Demo – Spiel läuft)";
+    adminHint.textContent = "Du kannst die vorhandenen Links ansehen, aber nichts mehr ändern.";
+    mappingInput.value = "";
+    mappingInput.readOnly = true;
+    mappingBlock.style.display = "none";
   }
 }
 
+/* Admin-Ansicht bearbeitbar */
 function showEditableAdminView() {
   adminLockedMsg.classList.add('hidden');
   adminConfig.classList.remove('hidden');
@@ -538,8 +549,7 @@ generateLinksBtn.addEventListener('click', () => {
 
   if (isFinalized()) {
     alert("Es wurde bereits eine Zuordnung erstellt. Keine weiteren Links möglich.");
-    if (adminMode === "real") showLockedAdminView(true);
-    else showLockedAdminView(false);
+    showLockedAdminView(adminMode === "real");
     return;
   }
 
@@ -648,7 +658,7 @@ generateLinksBtn.addEventListener('click', () => {
   markFinalized();
 });
 
-/* Teilnehmer: Link auswerten (mit PIN-Wiederfreischaltung) */
+/* Teilnehmer: Link auswerten (mit strenger PIN-Prüfung) */
 showResultBtn.addEventListener('click', () => {
   const params = new URLSearchParams(window.location.search);
   const tokenParam = params.get('t');
@@ -686,25 +696,35 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  // Wenn Link schon verwendet → PIN abfragen
+  // Link schon benutzt → PIN-Pfad
   if (localStorage.getItem(usedKey) === "true") {
     const savedPin = localStorage.getItem(pinKey);
     if (!savedPin) {
-      resultMsg.textContent = "Dieser Link wurde bereits verwendet.";
+      resultMsg.textContent = "Dieser Link wurde bereits verwendet (kein PIN gesetzt).";
       return;
     }
 
-    const entered = prompt("Dieser Link wurde bereits verwendet.\nBitte deinen 4-stelligen PIN eingeben:");
-    if (!entered || !/^[0-9]{4}$/.test(entered)) {
-      resultMsg.textContent = "PIN-Eingabe abgebrochen oder ungültig.";
+    let entered = prompt(
+      "Dieser Link wurde bereits verwendet.\n\nBitte deinen 4-stelligen PIN eingeben (nur Ziffern):"
+    );
+    if (entered === null) {
+      resultMsg.textContent = "PIN-Eingabe abgebrochen.";
       return;
     }
+
+    while (!/^[0-9]{4}$/.test(entered)) {
+      entered = prompt("Der PIN muss aus genau 4 Ziffern bestehen.\nBitte erneut eingeben oder Abbrechen:");
+      if (entered === null) {
+        resultMsg.textContent = "PIN-Eingabe abgebrochen.";
+        return;
+      }
+    }
+
     if (entered !== savedPin) {
       resultMsg.textContent = "Falscher PIN.";
       return;
     }
 
-    // korrekter PIN → Zuordnung erneut anzeigen
     resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
     if (bgMusic) {
       bgMusic.play().catch(() => {});
@@ -712,16 +732,26 @@ showResultBtn.addEventListener('click', () => {
     return;
   }
 
-  // Erster Aufruf: zeigen + PIN setzen
+  // Erster Aufruf → Ergebnis anzeigen & optional PIN setzen
   resultMsg.textContent = `Du beschenkst: ${pair.targetName}`;
   localStorage.setItem(usedKey, "true");
 
-  const pin = prompt(
+  let pin = prompt(
     "Wenn du später nochmal nachschauen willst, kannst du jetzt einen 4-stelligen Zahlencode festlegen.\n" +
-    "Lass das Feld leer, wenn du keinen PIN setzen möchtest.\n\nPIN (4 Ziffern):"
+    "Lass das Feld leer oder drücke Abbrechen, wenn du keinen PIN setzen möchtest.\n\nPIN (4 Ziffern):"
   );
-  if (pin && /^[0-9]{4}$/.test(pin)) {
-    localStorage.setItem(pinKey, pin);
+
+  if (pin !== null && pin !== "") {
+    while (!/^[0-9]{4}$/.test(pin)) {
+      pin = prompt("Der PIN muss aus genau 4 Ziffern bestehen.\nBitte erneut eingeben oder Abbrechen:");
+      if (pin === null || pin === "") {
+        pin = "";
+        break;
+      }
+    }
+    if (pin && /^[0-9]{4}$/.test(pin)) {
+      localStorage.setItem(pinKey, pin);
+    }
   }
 
   if (bgMusic) {
