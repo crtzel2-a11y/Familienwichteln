@@ -405,7 +405,35 @@ function createDerangement(n) {
   return perm;
 }
 
-/* Admin-Ansicht (gesperrt) – jetzt mit Links-Vorschau auch im Fake-Login */
+/* Mapping aus Links rekonstruieren (für echten Admin, auch wenn Fake erstellt hat) */
+function buildMappingFromLinks(storedLinks) {
+  if (!storedLinks) return "";
+  const lines = storedLinks.split(/\n+/).map(l => l.trim()).filter(l => l);
+  const mappingLines = [];
+
+  for (const line of lines) {
+    const parts = line.split(":");
+    if (parts.length < 2) continue;
+    const namePart = parts[0].trim();
+    const urlPart = parts.slice(1).join(":").trim();
+    const tIndex = urlPart.indexOf("?t=");
+    if (tIndex === -1) continue;
+    const tokenPart = urlPart.substring(tIndex + 3);
+    try {
+      const decodedToken = decodeURIComponent(tokenPart);
+      const pair = decryptData(decodedToken);
+      if (pair && pair.myName && pair.targetName) {
+        mappingLines.push(`${pair.myName} -> ${pair.targetName}`);
+      }
+    } catch (e) {
+      // ignorieren, falls mal was schiefgeht
+    }
+  }
+
+  return mappingLines.join("\n");
+}
+
+/* Admin-Ansicht (gesperrt) – echter Admin sieht jetzt immer Mapping */
 function showLockedAdminView(isReal) {
   adminLockedMsg.classList.remove('hidden');
   adminSection.classList.remove('hidden');
@@ -416,11 +444,11 @@ function showLockedAdminView(isReal) {
   const storedMapping = localStorage.getItem(LS_MAPPING) || "";
   const storedLinks = localStorage.getItem(LS_LINKS) || "";
 
-  // Namen immer anzeigen, aber nur lesen
+  // Namen immer anzeigen, nur lesen
   namesInput.value = storedNames;
   namesInput.readOnly = true;
 
-  // Links immer anzeigen (auch Fake-Admin)
+  // Links immer anzeigen
   linksOutput.textContent = storedLinks;
   if (storedLinks) {
     linksSection.classList.remove('hidden');
@@ -433,7 +461,13 @@ function showLockedAdminView(isReal) {
   if (isReal) {
     adminTitle.textContent = "Admin-Bereich (echter Admin – Spiel läuft)";
     adminHint.textContent = "Du kannst Zuordnung & Links ansehen, aber nichts mehr ändern.";
-    mappingInput.value = storedMapping;
+
+    // Mapping: entweder gespeichertes Mapping oder aus Links rekonstruieren
+    let mappingText = storedMapping;
+    if (!mappingText || !mappingText.trim()) {
+      mappingText = buildMappingFromLinks(storedLinks);
+    }
+    mappingInput.value = mappingText;
     mappingInput.readOnly = true;
     mappingBlock.style.display = "";
   } else {
@@ -646,7 +680,6 @@ generateLinksBtn.addEventListener('click', () => {
   linksOutput.textContent = linksText;
   linksSection.classList.remove('hidden');
 
-  // für echten Admin Mapping speichern, für Fake nur Namen + Links
   localStorage.setItem(LS_NAMES, names.join("\n"));
   if (adminMode === "real") {
     localStorage.setItem(LS_MAPPING, mappingInput.value);
